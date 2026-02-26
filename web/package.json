@@ -1,12 +1,25 @@
 {
-  "name": "web",
-  "module": "index.ts",
-  "type": "module",
+  "name": "@tensamin/core-socket",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./context": "./src/context.tsx",
+    "./send": "./src/send.ts",
+    "./values": "./src/values.ts"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "scripts": {
+    "format": "bunx prettier --write .",
+    "lint": "eslint src",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.4",
+    "@tensamin/core-crypto": "workspace:*",
+    "@tensamin/core-storage": "workspace:*",
+    "@tensamin/shared": "workspace:*",
+    "@tensamin/ui": "workspace:*",
+    "solid-js": "^1.9.10",
+    "zod": "^4.3.6"
   }
 }
