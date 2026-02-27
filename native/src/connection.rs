@@ -1,5 +1,5 @@
 use epsilon_core::CommunicationValue;
-use quinn::Connection;
+use quinn::{Connection, VarInt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::CommunicationError;
@@ -35,6 +35,9 @@ impl Sender {
         stream.finish()?;
         Ok(())
     }
+    pub fn close(&self) {
+        self.connection.close(VarInt::from_u32(0), b"sender closed");
+    }
 }
 
 impl Receiver {
@@ -58,5 +61,9 @@ impl Receiver {
             .ok_or(CommunicationError::ParseCommunicationValue)?;
 
         Ok(value)
+    }
+    pub fn close(&self) {
+        self.connection
+            .close(VarInt::from_u32(0), b"receiver closed");
     }
 }
