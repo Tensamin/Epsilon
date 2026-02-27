@@ -61,8 +61,8 @@ impl CommunicationValue {
         self.data.insert(data, value);
         self
     }
-    pub fn get_data(&self, data_type: DataTypes) -> Option<&DataValue> {
-        self.data.get(&data_type)
+    pub fn get_data(&self, data_type: DataTypes) -> &DataValue {
+        self.data.get(&data_type).unwrap_or(&DataValue::Null)
     }
     pub fn get_data_container(&self) -> &HashMap<DataTypes, DataValue> {
         &self.data
