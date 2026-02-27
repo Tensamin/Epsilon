@@ -42,4 +42,49 @@ impl DataValue {
             DataValue::Null => DataKind::Null,
         }
     }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            DataValue::BoolTrue => Some(true),
+            DataValue::BoolFalse => Some(false),
+            DataValue::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+    pub fn as_string(&self) -> Option<String> {
+        match self {
+            DataValue::Str(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_number(&self) -> Option<i64> {
+        match self {
+            DataValue::Number(n) => Some(*n),
+            _ => None,
+        }
+    }
+    pub fn as_array(&self) -> Option<Vec<DataValue>> {
+        match self {
+            DataValue::Array(a) => Some(a.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_container(&self) -> Option<Vec<(DataTypes, DataValue)>> {
+        match self {
+            DataValue::Container(c) => Some(c.clone()),
+            _ => None,
+        }
+    }
+    pub fn as_map(&self) -> Option<HashMap<DataTypes, DataValue>> {
+        match self {
+            DataValue::Container(c) => {
+                let mut map = HashMap::new();
+                for (key, value) in c {
+                    map.insert(key.clone(), value.clone());
+                }
+                Some(map)
+            }
+            _ => None,
+        }
+    }
 }
