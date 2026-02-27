@@ -56,6 +56,17 @@ impl CommunicationValue {
     pub fn is_type(&self, p0: CommunicationType) -> bool {
         self.comm_type == p0
     }
+
+    pub fn with_data(mut self, data: HashMap<DataTypes, DataValue>) -> Self {
+        self.data = data;
+        self
+    }
+    pub fn get_data(&self) -> &HashMap<DataTypes, DataValue> {
+        &self.data
+    }
+    pub fn get_value(&self, data_type: DataTypes) -> Option<&DataValue> {
+        self.data.get(&data_type)
+    }
 }
 
 impl CommunicationValue {
