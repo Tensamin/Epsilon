@@ -90,6 +90,13 @@ pub enum DataTypes {
     omikron_connections = 79,
     reset_token = 80,
     new_token = 81,
+
+    call_invited = 82,
+    call_members = 83,
+    calls = 84,
+
+    timeout = 85,
+    has_admin = 86,
 }
 impl DataTypes {
     pub fn expected_kind(&self) -> DataKind {
@@ -101,6 +108,7 @@ impl DataTypes {
             | DataTypes::amount
             | DataTypes::position
             | DataTypes::offset
+            | DataTypes::timeout
             | DataTypes::sub_level => DataKind::Number,
 
             DataTypes::username
@@ -129,7 +137,9 @@ impl DataTypes {
                 DataKind::Container
             }
 
-            DataTypes::enabled | DataTypes::signed | DataTypes::accepted => DataKind::Bool,
+            DataTypes::enabled | DataTypes::signed | DataTypes::accepted | DataTypes::has_admin => {
+                DataKind::Bool
+            }
 
             _ => DataKind::Null,
         }
