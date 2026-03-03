@@ -1,15 +1,14 @@
-use crate::CommunicationError;
-pub use crate::Receiver;
-pub use crate::Sender;
-use quinn::rustls::pki_types::pem::PemObject;
-use quinn::{Connection, Endpoint, ServerConfig, rustls};
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use crate::{CommunicationError, Receiver, Sender};
+use wtransport::{
+    ClientConfig, Connection, Endpoint, Identity, RecvStream, SendStream, ServerConfig,
+};
+
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
+// Server hosting using WebTransport
 pub struct Host {
-    incoming: mpsc::Receiver<(Sender, Receiver)>,
+    incoming: tokio::sync::mpsc::Receiver<(Sender, Receiver)>,
     _task: tokio::task::JoinHandle<()>,
 }
 
@@ -19,21 +18,32 @@ impl Host {
     }
 }
 
-pub async fn host(port: u16, server_config: ServerConfig) -> Result<Host, CommunicationError> {
-    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
-    let endpoint = Endpoint::server(server_config, addr)?;
+pub async fn host(port: u16) -> Result<Host, CommunicationError> {
+    let server_config = configure_server(port).await?;
+    let endpoint = Endpoint::server(server_config)?;
 
-    let (incoming_tx, incoming_rx) = mpsc::channel(16);
+    let (incoming_tx, incoming_rx) = tokio::sync::mpsc::channel(16);
 
     let task = tokio::spawn(async move {
-        while let Some(incoming) = endpoint.accept().await {
-            let conn = match incoming.await {
-                Ok(c) => c,
+        // WebTransport server loop: accept incoming sessions
+        loop {
+            // Wait for incoming session
+            let incoming_session = endpoint.accept().await;
+
+            // Wait for session request (HTTP/3 upgrade negotiation)
+            let incoming_request = match incoming_session.await {
+                Ok(req) => req,
+                Err(_) => continue,
+            };
+
+            // Accept the WebTransport session
+            let connection = match incoming_request.accept().await {
+                Ok(conn) => conn,
                 Err(_) => continue,
             };
 
             let incoming_tx = incoming_tx.clone();
-            tokio::spawn(handle_connection(conn, incoming_tx));
+            tokio::spawn(handle_connection(connection, incoming_tx));
         }
     });
 
@@ -43,7 +53,10 @@ pub async fn host(port: u16, server_config: ServerConfig) -> Result<Host, Commun
     })
 }
 
-async fn handle_connection(connection: Connection, tx: mpsc::Sender<(Sender, Receiver)>) {
+async fn handle_connection(
+    connection: Connection,
+    tx: tokio::sync::mpsc::Sender<(Sender, Receiver)>,
+) {
     let sender = Sender::new(connection.clone());
     let receiver = Receiver::new(connection);
 
@@ -51,32 +64,16 @@ async fn handle_connection(connection: Connection, tx: mpsc::Sender<(Sender, Rec
     let _ = tx.try_send((sender, receiver));
 }
 
-pub fn generate_self_signed_cert() -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let cert_der = CertificateDer::from(cert.cert.der().clone());
-    let key_der = PrivateKeyDer::from_pem(
-        rustls::pki_types::pem::SectionKind::Certificate,
-        cert.signing_key.serialize_der(),
-    )
-    .unwrap();
-    (vec![cert_der], key_der)
-}
+async fn configure_server(port: u16) -> Result<ServerConfig, CommunicationError> {
+    // Generate self-signed identity for WebTransport
+    // In production, use Identity::load_pemfiles("cert.pem", "key.pem").await?
+    let identity = Identity::self_signed(["localhost", "127.0.0.1", "::1"])
+        .map_err(|_| CommunicationError::CertificateGenerationFailed)?;
 
-pub fn configure_server() -> ServerConfig {
-    let (certs, key) = generate_self_signed_cert();
+    let server_config = ServerConfig::builder()
+        .with_bind_default(port)
+        .with_identity(identity)
+        .build();
 
-    let mut crypto = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .unwrap();
-
-    // ALPN for both native QUIC and WebTransport
-    crypto.alpn_protocols = vec![
-        b"h3".to_vec(),    // HTTP/3 (WebTransport)
-        b"hq-29".to_vec(), // QUIC (legacy)
-    ];
-
-    ServerConfig::with_crypto(Arc::new(
-        quinn::crypto::rustls::QuicServerConfig::try_from(crypto).unwrap(),
-    ))
+    Ok(server_config)
 }

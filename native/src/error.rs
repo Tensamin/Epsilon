@@ -24,7 +24,10 @@ pub enum CommunicationError {
     ParseAddr(#[from] std::net::AddrParseError),
 
     #[error("Connect error")]
-    ConnectError(#[from] quinn::ConnectError),
+    ConnectionError(#[from] wtransport::error::ConnectionError),
+
+    #[error("Connect error")]
+    ConnectingError(#[from] wtransport::error::ConnectingError),
 
     #[error("ReadToEnd error")]
     ReadToEndError(#[from] quinn::ReadToEndError),
