@@ -1,2 +1,2 @@
-# Epsilon
-The Tensamin Communication &amp; Connections Protocoll 
+# TTP
+Tensamin Transport Protocol

@@ -1,12 +1,12 @@
 {
-  "name": "@tensamin/core-socket",
+  "name": "@tensamin/ttp",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    "./context": "./src/context.tsx",
-    "./send": "./src/send.ts",
-    "./values": "./src/values.ts"
+    "./context": "./web/context.tsx",
+    "./send": "./web/send.ts",
+    "./values": "./web/values.ts"
   },
   "scripts": {
     "format": "bunx prettier --write .",
