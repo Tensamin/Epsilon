@@ -167,6 +167,14 @@ impl CommunicationValue {
             data,
         })
     }
+
+    /*
+     * [2 bytes amount of elements in Array]
+     * [
+     *   [2 bytes Object length]
+     *   [Object bytes]
+     * ]
+     */
     fn write_array(buf: &mut Vec<u8>, arr: &[DataValue]) {
         buf.write_u16::<BigEndian>(arr.len() as u16).unwrap();
 
@@ -197,34 +205,6 @@ impl CommunicationValue {
                 .unwrap();
 
             buf.extend_from_slice(&object_bytes);
-        }
-    }
-    fn write_data_container(buf: &mut Vec<u8>, data: &HashMap<DataTypes, DataValue>) {
-        for (key, value) in data {
-            buf.push(key.as_number());
-            let mut data_bytes = Vec::new();
-
-            match value {
-                DataValue::Number(n) => data_bytes.write_i64::<BigEndian>(*n).unwrap(),
-                DataValue::Str(s) => data_bytes.extend_from_slice(s.as_bytes()),
-                DataValue::Container(inner) => {
-                    let mut inner_map = HashMap::new();
-                    for (k, v) in inner {
-                        inner_map.insert(k.clone(), v.clone());
-                    }
-                    Self::write_data_container(&mut data_bytes, &inner_map);
-                }
-                DataValue::Array(arr) => Self::write_array(&mut data_bytes, arr),
-                DataValue::BoolTrue => data_bytes.extend_from_slice(&[1 as u8]),
-                DataValue::BoolFalse => data_bytes.extend_from_slice(&[0 as u8]),
-                DataValue::Bool(b) => {
-                    data_bytes.extend_from_slice(&[if *b { 1 as u8 } else { 0 as u8 }]);
-                }
-                DataValue::Null => {}
-            }
-
-            buf.write_u16::<BigEndian>(data_bytes.len() as u16).unwrap(); // 2-byte length
-            buf.extend_from_slice(&data_bytes); // N bytes data
         }
     }
     fn read_array(cursor: &mut Cursor<&[u8]>, element_kind: &DataKind) -> Option<Vec<DataValue>> {
@@ -272,6 +252,42 @@ impl CommunicationValue {
         }
 
         Some(result)
+    }
+    /*
+     * [2 bytes amount of elements in Container]
+     * [
+     *   [1 byte key]
+     *   [2 bytes Object length]
+     *   [Object bytes]
+     * ]
+     */
+    fn write_data_container(buf: &mut Vec<u8>, data: &HashMap<DataTypes, DataValue>) {
+        for (key, value) in data {
+            buf.push(key.as_number());
+            let mut data_bytes = Vec::new();
+
+            match value {
+                DataValue::Number(n) => data_bytes.write_i64::<BigEndian>(*n).unwrap(),
+                DataValue::Str(s) => data_bytes.extend_from_slice(s.as_bytes()),
+                DataValue::Container(inner) => {
+                    let mut inner_map = HashMap::new();
+                    for (k, v) in inner {
+                        inner_map.insert(k.clone(), v.clone());
+                    }
+                    Self::write_data_container(&mut data_bytes, &inner_map);
+                }
+                DataValue::Array(arr) => Self::write_array(&mut data_bytes, arr),
+                DataValue::BoolTrue => data_bytes.extend_from_slice(&[1 as u8]),
+                DataValue::BoolFalse => data_bytes.extend_from_slice(&[0 as u8]),
+                DataValue::Bool(b) => {
+                    data_bytes.extend_from_slice(&[if *b { 1 as u8 } else { 0 as u8 }]);
+                }
+                DataValue::Null => {}
+            }
+
+            buf.write_u16::<BigEndian>(data_bytes.len() as u16).unwrap(); // 2-byte length
+            buf.extend_from_slice(&data_bytes); // N bytes data
+        }
     }
     fn read_data_container(cursor: &mut Cursor<&[u8]>) -> Option<HashMap<DataTypes, DataValue>> {
         let mut data = HashMap::new();
@@ -439,6 +455,27 @@ mod tests {
             assert_eq!(arr.len(), 3);
         } else {
             panic!("Expected number array");
+        }
+    }
+    #[test]
+    fn test_array_strings() {
+        let mut cv = CommunicationValue::new(CommunicationType::messages_get);
+
+        cv.data.insert(
+            DataTypes::user_states,
+            DataValue::Array(vec![
+                DataValue::Str("1".to_string()),
+                DataValue::Str("2".to_string()),
+                DataValue::Str("3".to_string()),
+            ]),
+        );
+
+        let decoded = roundtrip(cv);
+
+        if let Some(DataValue::Array(arr)) = decoded.data.get(&DataTypes::user_states) {
+            assert_eq!(arr.len(), 3);
+        } else {
+            panic!("Expected Str array");
         }
     }
 
