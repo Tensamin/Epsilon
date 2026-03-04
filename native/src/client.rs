@@ -1,6 +1,4 @@
-use ::aws_lc_rs::digest;
 use rustls::pki_types::pem::PemObject;
-use wtransport::tls::Sha256Digest;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
 use crate::{CommunicationError, Receiver, Sender};
@@ -9,6 +7,8 @@ pub async fn connect(
     url: &str,
     server_cert: Vec<u8>,
 ) -> Result<(Sender, Receiver), CommunicationError> {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let client_config = configure_client(server_cert)?;
     let endpoint = Endpoint::client(client_config)?;
 
@@ -23,28 +23,26 @@ pub async fn connect(
 
     Ok((sender, receiver))
 }
+use rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
 
 fn configure_client(server_cert: Vec<u8>) -> Result<ClientConfig, CommunicationError> {
-    // Parse the server certificate to extract its SHA-256 hash for pinning
-    let cert_der = rustls::pki_types::CertificateDer::pem_slice_iter(&server_cert)
+    let mut root_store = RootCertStore::empty();
+    let cert = rustls::pki_types::CertificateDer::pem_slice_iter(&server_cert)
         .next()
         .ok_or(CommunicationError::CertificateParseFailed)?
         .map_err(|_| CommunicationError::CertificateParseFailed)?;
 
-    // Compute SHA-256 hash of the certificate
-    let hash = digest::digest(&digest::SHA256, cert_der.as_ref());
-    let hash_bytes: [u8; 32] = hash
-        .as_ref()
-        .try_into()
+    root_store
+        .add(cert)
         .map_err(|_| CommunicationError::CertificateParseFailed)?;
 
-    let digest = Sha256Digest::new(hash_bytes);
+    let tls_config = RustlsClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
-    // Build client config with certificate hash pinning
-    // This only accepts certificates matching the specific hash
     let client_config = ClientConfig::builder()
         .with_bind_default()
-        .with_server_certificate_hashes([digest])
+        .with_custom_tls(tls_config)
         .build();
 
     Ok(client_config)
