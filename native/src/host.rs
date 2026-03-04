@@ -5,7 +5,6 @@ use rustls::pki_types::{
 };
 use wtransport::{Connection, Endpoint, ServerConfig};
 
-// Server hosting using WebTransport
 pub struct Host {
     incoming: tokio::sync::mpsc::Receiver<(Sender, Receiver)>,
     _task: tokio::task::JoinHandle<()>,
@@ -78,10 +77,13 @@ async fn configure_server(
     }?;
 
     println!("Building TLS config...");
-    let tls_config = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(cert_chain, key)
-        .map_err(|_| CommunicationError::CertificateLoadFailed)?;
+    let tls_config = rustls::ServerConfig::builder();
+    println!("Building TLS config...");
+    let tls_config = tls_config.with_no_client_auth();
+    println!("Building TLS config...");
+    let tls_config = tls_config.with_single_cert(cert_chain, key);
+    println!("Building TLS config...");
+    let tls_config = tls_config.map_err(|_| CommunicationError::CertificateLoadFailed)?;
 
     println!("Creating server config...");
     let server_config = ServerConfig::builder()
