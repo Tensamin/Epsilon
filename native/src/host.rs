@@ -1,8 +1,5 @@
 use crate::{CommunicationError, Receiver, Sender};
-use rustls::pki_types::{
-    PrivateKeyDer,
-    pem::{PemObject, SectionKind},
-};
+use rustls::pki_types::{PrivateKeyDer, pem::PemObject};
 use wtransport::{Connection, Endpoint, ServerConfig};
 
 pub struct Host {
@@ -21,6 +18,9 @@ pub async fn host(
     cert_pem: Vec<u8>,
     key_pem: Vec<u8>,
 ) -> Result<Host, CommunicationError> {
+    // Install crypto provider if not already installed
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let server_config = configure_server(port, cert_pem, key_pem).await?;
     let endpoint = Endpoint::server(server_config)?;
 
@@ -68,22 +68,25 @@ async fn configure_server(
     println!("Parsing certificate...");
     let cert_chain = rustls::pki_types::CertificateDer::pem_slice_iter(&cert_pem)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| CommunicationError::CertificateLoadFailed)?;
+        .map_err(|e| {
+            eprintln!("Certificate parse error: {:?}", e);
+            CommunicationError::CertificateLoadFailed
+        })?;
 
     println!("Parsing private key...");
-    let key = match PrivateKeyDer::from_pem(SectionKind::PrivateKey, key_pem) {
-        Some(u) => Ok(u),
-        _ => Err(CommunicationError::CertificateParseFailed),
-    }?;
+    let key = PrivateKeyDer::try_from(key_pem).map_err(|e| {
+        eprintln!("Key parse error: {:?}", e);
+        CommunicationError::CertificateParseFailed
+    })?;
 
     println!("Building TLS config...");
-    let tls_config = rustls::ServerConfig::builder();
-    println!("Building TLS config...");
-    let tls_config = tls_config.with_no_client_auth();
-    println!("Building TLS config...");
-    let tls_config = tls_config.with_single_cert(cert_chain, key);
-    println!("Building TLS config...");
-    let tls_config = tls_config.map_err(|_| CommunicationError::CertificateLoadFailed)?;
+    let tls_config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, key)
+        .map_err(|e| {
+            eprintln!("TLS config error: {:?}", e);
+            CommunicationError::CertificateLoadFailed
+        })?;
 
     println!("Creating server config...");
     let server_config = ServerConfig::builder()
