@@ -1,5 +1,4 @@
 use ::aws_lc_rs::digest;
-use rustls::crypto::aws_lc_rs::default_provider;
 use rustls::pki_types::pem::PemObject;
 use wtransport::tls::Sha256Digest;
 use wtransport::{ClientConfig, Connection, Endpoint};
@@ -10,10 +9,6 @@ pub async fn connect(
     url: &str,
     server_cert: Vec<u8>,
 ) -> Result<(Sender, Receiver), CommunicationError> {
-    default_provider()
-        .install_default()
-        .map_err(|_| CommunicationError::CryptoProviderInstallFailed)?;
-
     let client_config = configure_client(server_cert)?;
     let endpoint = Endpoint::client(client_config)?;
 

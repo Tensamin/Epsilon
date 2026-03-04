@@ -1,5 +1,5 @@
 use crate::{CommunicationError, Receiver, Sender};
-use rustls::{crypto::aws_lc_rs::default_provider, pki_types::pem::PemObject};
+use rustls::pki_types::pem::PemObject;
 use wtransport::{Connection, Endpoint, ServerConfig};
 
 // Server hosting using WebTransport
@@ -19,10 +19,6 @@ pub async fn host(
     cert_pem: Vec<u8>,
     key_pem: Vec<u8>,
 ) -> Result<Host, CommunicationError> {
-    default_provider()
-        .install_default()
-        .map_err(|_| CommunicationError::CryptoProviderInstallFailed)?;
-
     let server_config = configure_server(port, cert_pem, key_pem).await?;
     let endpoint = Endpoint::server(server_config)?;
 
