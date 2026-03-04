@@ -56,6 +56,9 @@ pub enum CommunicationError {
     #[error("Stream Error")]
     StreamError,
 
+    #[error("Crypto Provider Install Error")]
+    CryptoProviderInstallFailed,
+
     #[error("Other: {0}")]
     Other(String),
 }

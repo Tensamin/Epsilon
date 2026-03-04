@@ -10,7 +10,9 @@ pub async fn connect(
     url: &str,
     server_cert: Vec<u8>,
 ) -> Result<(Sender, Receiver), CommunicationError> {
-    let _ = default_provider().install_default();
+    default_provider()
+        .install_default()
+        .map_err(|_| CommunicationError::CryptoProviderInstallFailed)?;
 
     let client_config = configure_client(server_cert)?;
     let endpoint = Endpoint::client(client_config)?;

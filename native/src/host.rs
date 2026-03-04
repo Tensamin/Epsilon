@@ -19,7 +19,9 @@ pub async fn host(
     cert_pem: Vec<u8>,
     key_pem: Vec<u8>,
 ) -> Result<Host, CommunicationError> {
-    let _ = default_provider().install_default();
+    default_provider()
+        .install_default()
+        .map_err(|_| CommunicationError::CryptoProviderInstallFailed)?;
 
     let server_config = configure_server(port, cert_pem, key_pem).await?;
     let endpoint = Endpoint::server(server_config)?;
