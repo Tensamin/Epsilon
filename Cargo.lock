@@ -289,6 +289,7 @@ dependencies = [
  "quinn",
  "rcgen",
  "rustls",
+ "rustls-native-certs",
  "thiserror 2.0.18",
  "tokio",
  "wtransport",

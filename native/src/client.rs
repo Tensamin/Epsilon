@@ -1,15 +1,12 @@
 use crate::{CommunicationError, Receiver, Sender};
-use rustls::pki_types::pem::PemObject;
 use rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
+use rustls_native_certs::load_native_certs;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
-pub async fn connect(
-    url: &str,
-    server_cert: Vec<u8>,
-) -> Result<(Sender, Receiver), CommunicationError> {
+pub async fn connect(url: &str) -> Result<(Sender, Receiver), CommunicationError> {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-    let client_config = configure_client(server_cert)?;
+    let client_config = configure_client()?;
     let endpoint = Endpoint::client(client_config)?;
 
     let connecting = endpoint.connect(url);
@@ -24,16 +21,14 @@ pub async fn connect(
     Ok((sender, receiver))
 }
 
-fn configure_client(server_cert: Vec<u8>) -> Result<ClientConfig, CommunicationError> {
+fn configure_client() -> Result<ClientConfig, CommunicationError> {
     let mut root_store = RootCertStore::empty();
-    let cert = rustls::pki_types::CertificateDer::pem_slice_iter(&server_cert)
-        .next()
-        .ok_or(CommunicationError::CertificateParseFailed)?
-        .map_err(|_| CommunicationError::CertificateParseFailed)?;
 
-    root_store
-        .add(cert)
-        .map_err(|_| CommunicationError::CertificateParseFailed)?;
+    let certs = load_native_certs().certs;
+
+    for cert in certs {
+        root_store.add(cert).ok();
+    }
 
     let mut tls_config = RustlsClientConfig::builder()
         .with_root_certificates(root_store)
