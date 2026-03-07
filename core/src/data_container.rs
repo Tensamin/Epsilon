@@ -1,5 +1,5 @@
 use crate::data_types::DataTypes;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub enum DataValue {
     Null,
 }
 impl DataValue {
-    pub fn container_from_map(map: &HashMap<DataTypes, DataValue>) -> DataValue {
+    pub fn container_from_map(map: &BTreeMap<DataTypes, DataValue>) -> DataValue {
         let mut container = Vec::new();
         for (key, value) in map {
             container.push((key.clone(), value.clone()));
@@ -82,10 +82,10 @@ impl DataValue {
             _ => None,
         }
     }
-    pub fn as_map(&self) -> Option<HashMap<DataTypes, DataValue>> {
+    pub fn as_map(&self) -> Option<BTreeMap<DataTypes, DataValue>> {
         match self {
             DataValue::Container(c) => {
-                let mut map = HashMap::new();
+                let mut map = BTreeMap::new();
                 for (key, value) in c {
                     map.insert(key.clone(), value.clone());
                 }
@@ -169,7 +169,7 @@ impl Hash for DataValue {
 mod tests {
     use super::*;
     use crate::data_types::DataTypes;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     fn sample_key_bool() -> DataTypes {
         DataTypes::accepted
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_container_from_map_and_as_map() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(sample_key_num(), DataValue::Number(1));
         map.insert(sample_key_str(), DataValue::Str("x".into()));
 
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_as_container() {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(sample_key_bool(), DataValue::Number(10));
 
         let container = DataValue::container_from_map(&map);

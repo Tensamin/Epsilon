@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::io::Read;
 
@@ -14,7 +14,7 @@ pub struct CommunicationValue {
     comm_type: CommunicationType,
     sender: u64,
     receiver: u64,
-    data: HashMap<DataTypes, DataValue>,
+    data: BTreeMap<DataTypes, DataValue>,
 }
 
 #[allow(dead_code)]
@@ -25,7 +25,7 @@ impl CommunicationValue {
             comm_type,
             sender: 0,
             receiver: 0,
-            data: HashMap::new(),
+            data: BTreeMap::new(),
         }
     }
     pub fn with_id(mut self, p0: u32) -> Self {
@@ -64,7 +64,7 @@ impl CommunicationValue {
     pub fn get_data(&self, data_type: DataTypes) -> &DataValue {
         self.data.get(&data_type).unwrap_or(&DataValue::Null)
     }
-    pub fn get_data_container(&self) -> &HashMap<DataTypes, DataValue> {
+    pub fn get_data_container(&self) -> &BTreeMap<DataTypes, DataValue> {
         &self.data
     }
 }
@@ -189,7 +189,7 @@ impl CommunicationValue {
                     object_bytes.extend_from_slice(s.as_bytes());
                 }
                 DataValue::Container(inner) => {
-                    let mut inner_map = HashMap::new();
+                    let mut inner_map = BTreeMap::new();
                     for (k, v) in inner {
                         inner_map.insert(k.clone(), v.clone());
                     }
@@ -261,7 +261,8 @@ impl CommunicationValue {
      *   [Object bytes]
      * ]
      */
-    fn write_data_container(buf: &mut Vec<u8>, data: &HashMap<DataTypes, DataValue>) {
+    fn write_data_container(buf: &mut Vec<u8>, data: &BTreeMap<DataTypes, DataValue>) {
+        buf.write_u16::<BigEndian>(data.len() as u16).unwrap();
         for (key, value) in data {
             buf.push(key.as_number());
             let mut data_bytes = Vec::new();
@@ -270,32 +271,52 @@ impl CommunicationValue {
                 DataValue::Number(n) => data_bytes.write_i64::<BigEndian>(*n).unwrap(),
                 DataValue::Str(s) => data_bytes.extend_from_slice(s.as_bytes()),
                 DataValue::Container(inner) => {
-                    let mut inner_map = HashMap::new();
+                    let mut inner_map = BTreeMap::new();
                     for (k, v) in inner {
                         inner_map.insert(k.clone(), v.clone());
                     }
                     Self::write_data_container(&mut data_bytes, &inner_map);
                 }
                 DataValue::Array(arr) => Self::write_array(&mut data_bytes, arr),
-                DataValue::BoolTrue => data_bytes.extend_from_slice(&[1 as u8]),
-                DataValue::BoolFalse => data_bytes.extend_from_slice(&[0 as u8]),
+                DataValue::BoolTrue => {
+                    data_bytes.extend_from_slice(&[1 as u8]);
+                    buf.extend_from_slice(&data_bytes);
+                    continue;
+                }
+                DataValue::BoolFalse => {
+                    data_bytes.extend_from_slice(&[0 as u8]);
+                    buf.extend_from_slice(&data_bytes);
+                    continue;
+                }
                 DataValue::Bool(b) => {
-                    data_bytes.extend_from_slice(&[if *b { 1 as u8 } else { 0 as u8 }]);
+                    if *b {
+                        data_bytes.extend_from_slice(&[1 as u8]);
+                    } else {
+                        data_bytes.extend_from_slice(&[0 as u8]);
+                    }
+                    buf.extend_from_slice(&data_bytes);
+                    continue;
                 }
                 DataValue::Null => {}
             }
 
-            buf.write_u16::<BigEndian>(data_bytes.len() as u16).unwrap(); // 2-byte length
-            buf.extend_from_slice(&data_bytes); // N bytes data
+            buf.write_u16::<BigEndian>(data_bytes.len() as u16).unwrap();
+            buf.extend_from_slice(&data_bytes);
         }
     }
-    fn read_data_container(cursor: &mut Cursor<&[u8]>) -> Option<HashMap<DataTypes, DataValue>> {
-        let mut data = HashMap::new();
+    fn read_data_container(cursor: &mut Cursor<&[u8]>) -> Option<BTreeMap<DataTypes, DataValue>> {
+        let count = cursor.read_u16::<BigEndian>().ok()? as usize;
+        let mut data = BTreeMap::new();
 
-        while (cursor.position() as usize) < cursor.get_ref().len() {
+        for _ in 0..count {
             let key_num = cursor.read_u8().ok()?;
             let key = DataTypes::from_number(key_num);
 
+            if key.expected_kind() == DataKind::Bool {
+                let value = cursor.read_u8().ok()? == 1;
+                data.insert(key, DataValue::Bool(value));
+                continue;
+            }
             let len = cursor.read_u16::<BigEndian>().ok()? as usize;
 
             let mut data_bytes = vec![0u8; len];
@@ -348,7 +369,25 @@ mod tests {
 
     fn roundtrip(cv: CommunicationValue) -> CommunicationValue {
         let bytes = cv.to_bytes();
-        CommunicationValue::from_bytes(&bytes).expect("Failed to deserialize")
+
+        let comm = CommunicationValue::from_bytes(&bytes).expect("Failed to deserialize");
+        let comm_bytes = comm.to_bytes();
+
+        println!(
+            "Serialized {} bytes: {:02x?}",
+            bytes.len(),
+            &bytes[..20.min(bytes.len())]
+        );
+
+        println!(
+            "Serialized {} bytes: {:02x?}",
+            comm_bytes.len(),
+            &comm_bytes[..20.min(comm_bytes.len())]
+        );
+
+        assert_eq!(bytes, comm_bytes);
+
+        comm
     }
 
     #[test]

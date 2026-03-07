@@ -3,7 +3,7 @@ use strum_macros::EnumIter;
 
 use crate::data_container::DataKind;
 
-#[derive(Eq, Hash, PartialEq, EnumIter, Clone, Debug)]
+#[derive(Eq, Hash, PartialEq, EnumIter, Clone, Debug, PartialOrd, Ord)]
 #[allow(non_camel_case_types, dead_code)]
 pub enum DataTypes {
     error_type = 0,

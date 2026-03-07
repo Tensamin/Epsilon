@@ -30,9 +30,11 @@ impl Sender {
 
         use tokio::io::AsyncWriteExt;
         stream.write_u32(len as u32).await?;
-        let _ = stream.write_all(&bytes).await;
+        stream
+            .write_all(&bytes)
+            .await
+            .map_err(|_| CommunicationError::StreamError)?;
 
-        // SendStream uses finish() without awaiting
         stream
             .finish()
             .await
@@ -61,7 +63,6 @@ impl Receiver {
     }
 
     pub async fn receive(&self) -> Result<CommunicationValue, CommunicationError> {
-        // accept_uni() returns RecvStream directly (not Result)
         let mut stream = self
             .connection
             .accept_uni()
@@ -76,7 +77,10 @@ impl Receiver {
         }
 
         let mut buf = vec![0u8; len as usize];
-        let _ = stream.read_exact(&mut buf).await;
+        stream
+            .read_exact(&mut buf)
+            .await
+            .map_err(|_| CommunicationError::StreamError)?;
 
         let value = CommunicationValue::from_bytes(&buf)
             .ok_or(CommunicationError::ParseCommunicationValue)?;
